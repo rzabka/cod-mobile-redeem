@@ -135,8 +135,10 @@ class _RedeemHomeState extends State<RedeemHome> {
           : 'Verifique o CAPTCHA e o botão de envio na página oficial.'
       )));
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('O portal não permitiu o envio assistido.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('O portal não permitiu o envio assistido.')));
+      }
     } finally {
       if (mounted) setState(() => processing = false);
     }
