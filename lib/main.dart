@@ -24,6 +24,7 @@ class _RedeemHomeState extends State<RedeemHome> {
   final results = <String, String>{};
   int current = 0;
   bool showPortal = false;
+  bool processing = false;
   late final WebViewController browser;
 
   @override void initState() {
@@ -108,6 +109,39 @@ class _RedeemHomeState extends State<RedeemHome> {
     }
   }
 
+  Future<void> _submitCurrent() async {
+    if (processing || current >= codes.length) return;
+    setState(() => processing = true);
+    try {
+      // Submit only after the user has manually completed the official CAPTCHA.
+      // Do not attempt to read, solve, or refresh it automatically.
+      final result = await browser.runJavaScriptReturningResult("""
+        (() => {
+          const inputs = [...document.querySelectorAll('input')];
+          const verification = inputs.find(e => /verification|captcha/i.test(
+            (e.name||'')+' '+(e.id||'')+' '+(e.placeholder||'')));
+          if (!verification || !verification.value.trim()) return 'captcha_missing';
+          const submit = [...document.querySelectorAll('button,input[type=submit]')]
+            .find(e => /submit|redeem/i.test(e.innerText||e.value||''));
+          if (!submit) return 'submit_missing';
+          submit.click();
+          return 'submitted';
+        })()
+      """);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+        result.toString().contains('submitted')
+          ? 'Enviado ao portal. Confira a resposta antes de avançar.'
+          : 'Verifique o CAPTCHA e o botão de envio na página oficial.'
+      )));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('O portal não permitiu o envio assistido.')));
+    } finally {
+      if (mounted) setState(() => processing = false);
+    }
+  }
+
   String _js(String value) => "'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', '\\n')}'";
 
   @override void dispose() { uid.dispose(); input.dispose(); super.dispose(); }
@@ -135,6 +169,11 @@ class _RedeemHomeState extends State<RedeemHome> {
             Expanded(child: FilledButton(onPressed: current < codes.length && uid.text.trim().isNotEmpty ? _fill : null, child: const Text('Preencher no portal'))),
             IconButton(onPressed: () => browser.reload(), tooltip: 'Atualizar portal', icon: const Icon(Icons.refresh)),
           ]),
+          if (showPortal) FilledButton.icon(
+            onPressed: processing || current >= codes.length ? null : _submitCurrent,
+            icon: const Icon(Icons.send),
+            label: const Text('CAPTCHA preenchido — enviar'),
+          ),
           Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
             TextButton(onPressed: current < codes.length ? () => _mark('resgatado') : null, child: const Text('Resgatado')),
             TextButton(onPressed: current < codes.length ? () => _mark('falhou') : null, child: const Text('Falhou')),
