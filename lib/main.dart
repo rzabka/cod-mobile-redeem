@@ -23,7 +23,8 @@ class _RedeemHomeState extends State<RedeemHome> {
   final codes = <String>[];
   final results = <String, String>{};
   int current = 0;
-  bool showPortal = false;
+  bool showPortal = true;
+  bool showSettings = false;
   bool processing = false;
   late final WebViewController browser;
 
@@ -150,45 +151,129 @@ class _RedeemHomeState extends State<RedeemHome> {
 
   @override Widget build(BuildContext context) {
     final code = current < codes.length ? codes[current] : 'Fila concluída';
+    final ready = current < codes.length && uid.text.trim().isNotEmpty;
     return Scaffold(
-      appBar: AppBar(title: const Text('COD Mobile Redeem'), actions: [
-        IconButton(onPressed: () => setState(() => showPortal = !showPortal), icon: Icon(showPortal ? Icons.list : Icons.language)),
-      ]),
-      body: Column(children: [
-        Padding(padding: const EdgeInsets.all(12), child: Column(children: [
-          TextField(controller: uid, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Seu UID', border: OutlineInputBorder()), onChanged: (_) => _save()),
-          const SizedBox(height: 8),
-          TextField(controller: input, minLines: 1, maxLines: 3, decoration: const InputDecoration(labelText: 'Cole códigos separados por linha', border: OutlineInputBorder())),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: FilledButton.tonal(onPressed: _add, child: const Text('Adicionar códigos'))),
-            const SizedBox(width: 8),
-            Text('${codes.length - current} pendentes'),
-          ]),
-          const SizedBox(height: 8),
-          Text('Atual: $code', style: Theme.of(context).textTheme.titleMedium),
-          Row(children: [
-            Expanded(child: FilledButton(onPressed: current < codes.length && uid.text.trim().isNotEmpty ? _fill : null, child: const Text('Preencher no portal'))),
-            IconButton(onPressed: () => browser.reload(), tooltip: 'Atualizar portal', icon: const Icon(Icons.refresh)),
-          ]),
-          if (showPortal) FilledButton.icon(
-            onPressed: processing || current >= codes.length ? null : _submitCurrent,
-            icon: const Icon(Icons.send),
-            label: const Text('CAPTCHA preenchido — enviar'),
+      appBar: AppBar(
+        toolbarHeight: 48,
+        title: const Text('COD Mobile Redeem', style: TextStyle(fontSize: 18)),
+        actions: [
+          IconButton(
+            tooltip: 'Configurar UID e códigos',
+            onPressed: () => setState(() => showSettings = !showSettings),
+            icon: Icon(showSettings ? Icons.expand_less : Icons.settings_outlined),
           ),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            TextButton(onPressed: current < codes.length ? () => _mark('resgatado') : null, child: const Text('Resgatado')),
-            TextButton(onPressed: current < codes.length ? () => _mark('falhou') : null, child: const Text('Falhou')),
-            TextButton(onPressed: current < codes.length ? () => _mark('ignorado') : null, child: const Text('Pular')),
-          ]),
-        ])),
-        Expanded(child: showPortal
-          ? WebViewWidget(controller: browser)
-          : ListView.builder(itemCount: codes.length, itemBuilder: (_, i) => ListTile(
-              dense: true, leading: Icon(i == current ? Icons.play_arrow : Icons.confirmation_number_outlined),
-              title: Text(codes[i]), subtitle: Text(results[codes[i]] ?? (i == current ? 'Atual' : 'Pendente')),
-              onTap: () { setState(() => current = i); _save(); },
-            ))),
+          IconButton(
+            tooltip: showPortal ? 'Ver fila' : 'Ver portal',
+            onPressed: () => setState(() => showPortal = !showPortal),
+            icon: Icon(showPortal ? Icons.list : Icons.language),
+          ),
+        ],
+      ),
+      body: Column(children: [
+        if (showSettings)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            child: Column(children: [
+              TextField(
+                controller: uid,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Seu UID', border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onChanged: (_) { _save(); setState(() {}); },
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: input,
+                minLines: 1,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Cole códigos separados por linha',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              Row(children: [
+                Expanded(child: FilledButton.tonal(
+                  onPressed: _add,
+                  child: const Text('Adicionar códigos'),
+                )),
+                const SizedBox(width: 8),
+                Text('${codes.length - current} pendentes'),
+              ]),
+            ]),
+          ),
+        Expanded(
+          child: showPortal
+              ? WebViewWidget(controller: browser)
+              : ListView.builder(
+                  itemCount: codes.length,
+                  itemBuilder: (_, i) => ListTile(
+                    dense: true,
+                    leading: Icon(i == current
+                        ? Icons.play_arrow
+                        : Icons.confirmation_number_outlined),
+                    title: Text(codes[i]),
+                    subtitle: Text(results[codes[i]] ??
+                        (i == current ? 'Atual' : 'Pendente')),
+                    onTap: () {
+                      setState(() => current = i);
+                      _save();
+                    },
+                  ),
+                ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                Expanded(child: Text(
+                  'Código: $code  •  ${codes.length - current} pendentes',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                )),
+                IconButton(
+                  tooltip: 'Atualizar portal',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => browser.reload(),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ]),
+              Row(children: [
+                Expanded(child: FilledButton(
+                  onPressed: ready ? _fill : null,
+                  child: const Text('Preencher'),
+                )),
+                const SizedBox(width: 6),
+                Expanded(child: FilledButton.tonal(
+                  onPressed: processing || !ready ? null : _submitCurrent,
+                  child: const Text('Enviar após CAPTCHA'),
+                )),
+              ]),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                TextButton(
+                  onPressed: current < codes.length
+                      ? () => _mark('resgatado') : null,
+                  child: const Text('Resgatado'),
+                ),
+                TextButton(
+                  onPressed: current < codes.length
+                      ? () => _mark('falhou') : null,
+                  child: const Text('Falhou'),
+                ),
+                TextButton(
+                  onPressed: current < codes.length
+                      ? () => _mark('ignorado') : null,
+                  child: const Text('Pular'),
+                ),
+              ]),
+            ]),
+          ),
+        ),
       ]),
     );
   }
